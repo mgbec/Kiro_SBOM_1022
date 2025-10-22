@@ -1,7 +1,7 @@
 # SBOM Security Agent
 
 A comprehensive security analysis agent that generates Software Bill of Materials (SBOM) reports and performs vulnerability scanning for GitHub repositories.
-
+This OAuth workflow will work in local development, but changes to AgentCore Identity implementation are being enforced 11/14/2025, putting changes in a separate repo
 ## Features
 
 - **GitHub Integration**: Secure OAuth2 authentication to access public and private repositories
@@ -93,5 +93,6 @@ mypy src/
 ```
 
 ## License
+
 
 MIT License - see LICENSE file for details.
