@@ -1,0 +1,43 @@
+# Docker Compose for local development and testing
+version: '3.8'
+
+services:
+  sbom-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - NVD_API_KEY=${NVD_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEBUG=${DEBUG:-false}
+      - CACHE_TTL_SECONDS=${CACHE_TTL_SECONDS:-3600}
+      - MAX_CACHE_SIZE=${MAX_CACHE_SIZE:-1000}
+    volumes:
+      - ./src:/app/src:ro
+      - ./sbom_agent.py:/app/sbom_agent.py:ro
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Redis for caching (if implementing distributed caching)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+volumes:
+  redis_data:
