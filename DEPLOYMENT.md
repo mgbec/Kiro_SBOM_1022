@@ -34,18 +34,13 @@ Your AWS credentials need the following permissions:
 
 ## Step 2: Environment Configuration
 
-1. Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Edit `.env` and set your GitHub OAuth credentials:
+1. Edit `.env` and set your GitHub OAuth credentials:
    ```bash
    GITHUB_CLIENT_ID=your-github-client-id
    GITHUB_CLIENT_SECRET=your-github-client-secret
    ```
 
-3. Set environment variables:
+2. Set environment variables:
    ```bash
    export $(cat .env | xargs)
    ```
@@ -209,4 +204,5 @@ For deployment issues:
 ### Monitoring
 - Set up CloudWatch alarms for error rates
 - Monitor API usage and costs
+
 - Review security scan results regularly
