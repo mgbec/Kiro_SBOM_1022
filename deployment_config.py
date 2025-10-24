@@ -9,7 +9,7 @@ import os
 import boto3
 from bedrock_agentcore_starter_toolkit import Runtime
 from boto3.session import Session
-from utils import setup_config_user_pool, reauthenticate_user
+from utils import setup_cognito_user_pool, reauthenticate_user
 
 # Configuration
 AGENT_NAME = "sbom_security_agent"
@@ -38,13 +38,35 @@ def setup_github_oauth_provider():
         return False
     
     try:
-        # Create credential provider
+        # Initialize AWS clients
         boto_session = Session()
         region = boto_session.region_name
         agentcore_client = boto3.client('bedrock-agentcore-control', region_name=region)
         
+        # First, check if the provider already exists
+        provider_name = 'github-provider'
+        
+        try:
+            # Try to get the existing provider
+            existing_providers = agentcore_client.list_oauth2_credential_providers()
+            
+            for provider in existing_providers.get('oauth2CredentialProviders', []):
+                if provider.get('name') == provider_name:
+                    print(f"ℹ️  GitHub OAuth2 provider '{provider_name}' already exists")
+                    print(f"   Provider ARN: {provider.get('credentialProviderArn', 'N/A')}")
+                    print(f"   Vendor: {provider.get('credentialProviderVendor', 'N/A')}")
+                    print(f"   Created: {provider.get('createdAt', 'N/A')}")
+                    print("✅ Using existing GitHub OAuth2 provider")
+                    return True
+                    
+        except Exception as list_error:
+            print(f"⚠️  Could not list existing providers: {str(list_error)}")
+            print("   Proceeding to create new provider...")
+        
+        # If we get here, the provider doesn't exist, so create it
+        print("📝 Creating new GitHub OAuth2 provider...")
         response = agentcore_client.create_oauth2_credential_provider(
-            name='github-provider',
+            name=provider_name,
             credentialProviderVendor='GithubOauth2',
             oauth2ProviderConfigInput={
                 'githubOauth2ProviderConfig': {
@@ -54,28 +76,37 @@ def setup_github_oauth_provider():
             }
         )
         
-        print(f"✅ GitHub OAuth2 provider created: {response['credentialProviderArn']}")
+        print(f"✅ GitHub OAuth2 provider created successfully!")
+        print(f"   Provider ARN: {response['credentialProviderArn']}")
+        print(f"   Name: {provider_name}")
         return True
         
     except Exception as e:
-        print(f"❌ Failed to create GitHub OAuth2 provider: {str(e)}")
-        return False
+        error_message = str(e)
+        
+        # Check if the error is about the provider already existing
+        if "already exists" in error_message.lower() or "duplicate" in error_message.lower():
+            print(f"ℹ️  GitHub OAuth2 provider '{provider_name}' already exists")
+            print("✅ Using existing GitHub OAuth2 provider")
+            return True
+        else:
+            print(f"❌ Failed to create GitHub OAuth2 provider: {error_message}")
+            return False
 
 def setup_cognito_auth():
-    """Set up Cognito authentication using the utils.py helper."""
-    
+    """Set up Cognito authentication using the utils.py implementation."""
     print("Setting up Cognito authentication...")
     
     try:
-        #use the Cognito setup from utils.py
+        # Use the actual Cognito setup from utils.py
         cognito_config = setup_cognito_user_pool()
-
+        
         if cognito_config:
             print("✅ Cognito User Pool created successfully")
             print(f"Pool ID: {cognito_config['pool_id']}")
             print(f"Client ID: {cognito_config['client_id']}")
             print(f"Discovery URL: {cognito_config['discovery_url']}")
-           
+            
             return {
                 "discovery_url": cognito_config["discovery_url"],
                 "client_id": cognito_config["client_id"],
@@ -90,7 +121,7 @@ def setup_cognito_auth():
                 "discovery_url": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_EXAMPLE/.well-known/openid-configuration",
                 "client_id": "example-client-id"
             }
-           
+            
     except Exception as e:
         print(f"❌ Error setting up Cognito: {str(e)}")
         print("⚠️  Using placeholder values for development")
@@ -197,11 +228,11 @@ def main():
     print("2. Configure monitoring and logging")
     print("3. Set up CI/CD pipeline for updates")
     print("4. Review security and compliance settings")
+    print("5. Note: Cognito User Pool credentials are displayed above for authentication")
     
     return True
 
 if __name__ == "__main__":
     success = main()
-
     exit(0 if success else 1)
 
