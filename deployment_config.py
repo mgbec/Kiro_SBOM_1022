@@ -9,6 +9,7 @@ import os
 import boto3
 from bedrock_agentcore_starter_toolkit import Runtime
 from boto3.session import Session
+from utils import setup_config_user_pool, reauthenticate_user
 
 # Configuration
 AGENT_NAME = "sbom_security_agent"
@@ -61,17 +62,42 @@ def setup_github_oauth_provider():
         return False
 
 def setup_cognito_auth():
-    """Set up Cognito authentication (placeholder for actual implementation)."""
+    """Set up Cognito authentication using the utils.py helper."""
+    
     print("Setting up Cognito authentication...")
-    print("ℹ️  For production deployment, configure Cognito User Pool with:")
-    print("   - User Pool with App Client")
-    print("   - JWT token configuration")
-    print("   - Appropriate scopes and permissions")
-    print("✅ Cognito configuration placeholder completed")
-    return {
-        "discovery_url": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_EXAMPLE/.well-known/openid_configuration",
-        "client_id": "example-client-id"
-    }
+    
+    try:
+        #use the Cognito setup from utils.py
+        cognito_config = setup_cognito_user_pool()
+
+        if cognito_config:
+            print("✅ Cognito User Pool created successfully")
+            print(f"Pool ID: {cognito_config['pool_id']}")
+            print(f"Client ID: {cognito_config['client_id']}")
+            print(f"Discovery URL: {cognito_config['discovery_url']}")
+           
+            return {
+                "discovery_url": cognito_config["discovery_url"],
+                "client_id": cognito_config["client_id"],
+                "pool_id": cognito_config["pool_id"],
+                "bearer_token": cognito_config["bearer_token"]
+            }
+        else:
+            print("❌ Failed to create Cognito User Pool")
+            # Fallback to placeholder values for development
+            print("⚠️  Using placeholder values for development")
+            return {
+                "discovery_url": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_EXAMPLE/.well-known/openid-configuration",
+                "client_id": "example-client-id"
+            }
+           
+    except Exception as e:
+        print(f"❌ Error setting up Cognito: {str(e)}")
+        print("⚠️  Using placeholder values for development")
+        return {
+            "discovery_url": "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_EXAMPLE/.well-known/openid-configuration",
+            "client_id": "example-client-id"
+        }
 
 def configure_agentcore_runtime():
     """Configure AgentCore Runtime deployment."""
@@ -178,3 +204,4 @@ if __name__ == "__main__":
     success = main()
 
     exit(0 if success else 1)
+
