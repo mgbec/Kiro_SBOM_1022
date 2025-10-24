@@ -46,9 +46,24 @@ pip install -r requirements.txt
 ## Quick Start
 
 ### 1. Deploy the Agent
+
+**Standard Deployment:**
 ```bash
 python deployment_config.py
 ```
+
+**Handle Redeployment Conflicts:**
+```bash
+# Simple conflict resolution
+python deployment_config.py --auto-update-on-conflict
+
+# Advanced conflict resolution
+python enhanced_deployment.py --auto-update
+python enhanced_deployment.py --force-recreate
+python enhanced_deployment.py --agent-name my-custom-agent
+```
+
+For detailed deployment options, see [DEPLOYMENT_OPTIONS.md](DEPLOYMENT_OPTIONS.md).
 
 ### 2. Find Your Agent Endpoint
 After deployment, use the endpoint discovery utilities:

@@ -176,7 +176,7 @@ def configure_agentcore_runtime():
         print(f"❌ Failed to configure AgentCore Runtime: {str(e)}")
         return False
 
-def deploy_agent(agentcore_runtime):
+def deploy_agent(agentcore_runtime, auto_update_on_conflict=False):
     """Deploy the agent to AgentCore Runtime."""
     print("Deploying SBOM Security Agent to AgentCore Runtime...")
     
@@ -190,11 +190,50 @@ def deploy_agent(agentcore_runtime):
         return launch_result
         
     except Exception as e:
-        print(f"❌ Failed to deploy agent: {str(e)}")
-        return False
+        error_message = str(e)
+        
+        # Handle deployment conflicts
+        if ("already exists" in error_message.lower() or 
+            "conflict" in error_message.lower() or
+            "duplicate" in error_message.lower()):
+            
+            print(f"⚠️  Deployment conflict detected: {error_message}")
+            
+            if auto_update_on_conflict:
+                print("🔄 Auto-update mode: Attempting to resolve conflict...")
+                print("💡 For more advanced conflict resolution, use: python enhanced_deployment.py")
+                
+                # Try launching again (AgentCore Runtime may handle updates automatically)
+                try:
+                    launch_result = agentcore_runtime.launch()
+                    print("✅ SBOM Security Agent updated successfully!")
+                    return launch_result
+                except Exception as retry_error:
+                    print(f"❌ Auto-update failed: {str(retry_error)}")
+                    print("💡 Try using: python enhanced_deployment.py --auto-update")
+                    return False
+            else:
+                print("\n💡 Conflict Resolution Options:")
+                print("1. Use --auto-update-on-conflict flag to automatically handle conflicts")
+                print("2. Use enhanced_deployment.py for more control:")
+                print("   python enhanced_deployment.py --auto-update")
+                print("   python enhanced_deployment.py --force-recreate")
+                print("   python enhanced_deployment.py --agent-name different-name")
+                return False
+        else:
+            print(f"❌ Failed to deploy agent: {error_message}")
+            return False
 
 def main():
     """Main deployment function."""
+    import sys
+    
+    # Check for command line arguments
+    auto_update_on_conflict = "--auto-update-on-conflict" in sys.argv
+    
+    if auto_update_on_conflict:
+        print("🔄 Auto-update on conflict mode enabled")
+    
     print("🚀 Starting SBOM Security Agent deployment...")
     print("="*60)
     
@@ -214,7 +253,7 @@ def main():
     print()
     
     # Step 3: Deploy agent
-    deployment_result = deploy_agent(agentcore_runtime)
+    deployment_result = deploy_agent(agentcore_runtime, auto_update_on_conflict)
     if not deployment_result:
         print("❌ Agent deployment failed.")
         return False
@@ -224,15 +263,33 @@ def main():
     print("🎉 SBOM Security Agent deployment completed successfully!")
     print()
     print("Next steps:")
-    print("1. Test the agent with a sample repository")
-    print("2. Configure monitoring and logging")
-    print("3. Set up CI/CD pipeline for updates")
-    print("4. Review security and compliance settings")
+    print("1. Test the agent: python test_deployment.py")
+    print("2. Find agent info: python get_agent_info.py")
+    print("3. Configure monitoring and logging")
+    print("4. Set up CI/CD pipeline for updates")
     print("5. Note: Cognito User Pool credentials are displayed above for authentication")
     
     return True
 
 if __name__ == "__main__":
+    import sys
+    
+    # Show help if requested
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("SBOM Security Agent Deployment Script")
+        print("="*40)
+        print()
+        print("Usage:")
+        print("  python deployment_config.py                    # Standard deployment")
+        print("  python deployment_config.py --auto-update-on-conflict  # Handle conflicts automatically")
+        print()
+        print("For advanced conflict resolution, use:")
+        print("  python enhanced_deployment.py --help")
+        print()
+        print("Options:")
+        print("  --auto-update-on-conflict    Automatically handle deployment conflicts")
+        print("  --help, -h                   Show this help message")
+        sys.exit(0)
+    
     success = main()
     exit(0 if success else 1)
-
