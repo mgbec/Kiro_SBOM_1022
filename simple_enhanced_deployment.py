@@ -152,8 +152,8 @@ def configure_runtime(agent_name, cognito_config):
         return False
 
 
-def deploy_with_conflict_handling(agentcore_runtime, auto_update=False, force_recreate=False):
-    """Deploy the agent with basic conflict handling."""
+def deploy_with_conflict_handling(agentcore_runtime, agent_name, auto_update=False, force_recreate=False):
+    """Deploy the agent with practical conflict handling."""
     print("Deploying SBOM Security Agent to AgentCore Runtime...")
     
     try:
@@ -178,25 +178,68 @@ def deploy_with_conflict_handling(agentcore_runtime, auto_update=False, force_re
             print(f"⚠️  Deployment conflict detected: {error_message}")
             
             if auto_update:
-                print("🔄 Auto-update mode: AgentCore Runtime should handle this automatically")
-                print("💡 If this persists, the conflict might require manual resolution")
+                print("🔄 Auto-update mode: Trying deployment with timestamp suffix...")
+                return try_deployment_with_unique_name(agent_name, "update")
             elif force_recreate:
-                print("🔄 Force recreate mode: AgentCore Runtime should clean up automatically")
-                print("💡 If this persists, you may need to manually clean up AWS resources")
+                print("🔄 Force recreate mode: Trying deployment with new unique name...")
+                return try_deployment_with_unique_name(agent_name, "recreate")
             else:
                 print("\n💡 Conflict Resolution Options:")
-                print("1. Use --auto-update to let AgentCore Runtime handle updates")
-                print("2. Use --force-recreate to let AgentCore Runtime clean up and recreate")
-                print("3. Use --agent-name to deploy with a different name")
-                print("4. Manually clean up conflicting resources in AWS console:")
-                print("   - ECR repositories starting with 'agentcore-runtime-'")
-                print("   - Lambda functions starting with 'agentcore-runtime-'")
-                print("   - IAM roles starting with 'AgentCoreRuntimeRole-'")
+                print("1. Run with --auto-update to deploy with a unique name")
+                print("2. Run with --force-recreate to deploy with a new unique name")
+                print("3. Use --agent-name to specify a different name")
+                print("4. Clean up existing resources: python cleanup_deployment.py --execute")
+                print("5. List existing resources: python cleanup_deployment.py")
+                print("\n🔄 Attempting automatic resolution with unique name...")
+                return try_deployment_with_unique_name(agent_name, "auto")
             
-            return False
         else:
             print(f"❌ Failed to deploy agent: {error_message}")
             return False
+
+
+def try_deployment_with_unique_name(base_agent_name, mode):
+    """Try deployment with a unique agent name to avoid conflicts."""
+    import datetime
+    
+    # Generate unique suffix
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    unique_agent_name = f"{base_agent_name}-{mode}-{timestamp}"
+    
+    print(f"🔄 Attempting deployment with unique name: {unique_agent_name}")
+    
+    try:
+        # Set up Cognito auth again
+        cognito_config = setup_cognito_auth()
+        
+        # Configure runtime with unique name
+        agentcore_runtime = configure_runtime(unique_agent_name, cognito_config)
+        if not agentcore_runtime:
+            print("❌ Failed to configure runtime with unique name")
+            return False
+        
+        # Launch with unique name
+        launch_result = agentcore_runtime.launch()
+        
+        print("✅ SBOM Security Agent deployed successfully with unique name!")
+        print(f"🏷️  Agent Name: {unique_agent_name}")
+        print(f"Deployment result: {launch_result}")
+        
+        # Save the new agent name to environment for future use
+        try:
+            with open('.env', 'a') as f:
+                f.write(f"\n# Auto-generated agent name from conflict resolution\n")
+                f.write(f"AGENT_NAME={unique_agent_name}\n")
+            print(f"💾 Saved new agent name to .env file")
+        except Exception as env_error:
+            print(f"⚠️  Could not save to .env file: {str(env_error)}")
+        
+        return launch_result
+        
+    except Exception as e:
+        print(f"❌ Failed to deploy with unique name: {str(e)}")
+        print("💡 You may need to manually clean up AWS resources or use a different base name")
+        return False
 
 
 def main():
@@ -280,7 +323,8 @@ Examples:
         
         # Step 4: Deploy agent with conflict handling
         deployment_result = deploy_with_conflict_handling(
-            agentcore_runtime, 
+            agentcore_runtime,
+            args.agent_name,
             auto_update=args.auto_update,
             force_recreate=args.force_recreate
         )

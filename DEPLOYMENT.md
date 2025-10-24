@@ -34,22 +34,22 @@ Your AWS credentials need the following permissions:
 
 ## Step 2: Environment Configuration
 
-1. Edit `.env` and set your GitHub OAuth credentials:
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` and set your GitHub OAuth credentials:
    ```bash
    GITHUB_CLIENT_ID=your-github-client-id
    GITHUB_CLIENT_SECRET=your-github-client-secret
    ```
 
-2. Set environment variables:
+3. Set environment variables:
    ```bash
    export $(cat .env | xargs)
    ```
-3. Create virtual environment according to your OS specifications, for me:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-   
+
 ## Step 3: Install Dependencies
 
 ```bash
@@ -97,12 +97,88 @@ If you prefer manual deployment:
 ## Step 5: Verify Deployment
 
 1. Check the AgentCore console for your deployed agent
-2. Test with a sample repository:
-   ```json
-   {
-     "prompt": "Analyze the repository https://github.com/example/repo for security vulnerabilities"
-   }
-   ```
+2. Get your agent endpoint URL from the deployment output
+3. Test with a sample repository using one of these methods:
+
+### Option A: Using curl (Command Line)
+```bash
+curl -X POST "https://your-agent-endpoint.amazonaws.com/invocations" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "prompt": "Analyze the repository https://github.com/microsoft/vscode for security vulnerabilities"
+  }'
+```
+
+### Option B: Using Python script
+Create a test file `test_agent.py`:
+```python
+import requests
+import json
+
+# Replace with your actual agent endpoint and JWT token
+AGENT_ENDPOINT = "https://your-agent-endpoint.amazonaws.com/invocations"
+JWT_TOKEN = "your-jwt-token-here"
+
+payload = {
+    "prompt": "Analyze the repository https://github.com/microsoft/vscode for security vulnerabilities"
+}
+
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {JWT_TOKEN}"
+}
+
+response = requests.post(AGENT_ENDPOINT, json=payload, headers=headers)
+print("Status Code:", response.status_code)
+print("Response:", response.text)
+```
+
+Then run:
+```bash
+python test_agent.py
+```
+
+### Option C: Using the Test Script (Recommended)
+Use the provided test script for easy testing:
+```bash
+python test_deployment.py
+```
+
+The script will:
+- Prompt you for your agent endpoint and Cognito client ID
+- Automatically get a fresh JWT token
+- Send a test request to your agent
+- Display the results in a readable format
+
+### Option D: Using the Web Interface (if deployed)
+If you've deployed the web application from `web_app_example.py`:
+1. Open your web application URL in a browser
+2. Enter the repository URL: `https://github.com/microsoft/vscode`
+3. Click "Analyze Repository"
+4. Follow the authentication flow if prompted
+
+### Expected Response
+The agent should respond with a streaming analysis that includes:
+- Authentication flow (if not already authenticated)
+- Repository dependency analysis
+- SBOM generation
+- Vulnerability scanning
+- Security report generation
+
+### Getting Your Agent Endpoint and JWT Token
+After successful deployment, you'll need:
+1. **Agent Endpoint**: Found in the deployment output or AgentCore console
+2. **JWT Token**: Use the bearer token from the Cognito setup output, or generate a new one:
+
+```bash
+# If you need to get a new JWT token
+python -c "
+from utils import reauthenticate_user
+token = reauthenticate_user('YOUR_COGNITO_CLIENT_ID')
+print('JWT Token:', token)
+"
+```
 
 ## Configuration Options
 
@@ -168,6 +244,12 @@ Key metrics to monitor:
 
 ### Common Issues
 
+**Testing Issues:**
+- **"Prompt::command not found"**: This means you're trying to run the JSON payload as a shell command. Use one of the testing methods in Step 5 instead.
+- **"Agent endpoint not found"**: Check the deployment output for the correct endpoint URL
+- **"401 Unauthorized"**: Your JWT token may be expired. Generate a new one using the utils.py script
+- **"403 Forbidden"**: Check that your JWT token has the correct permissions
+
 **Authentication Failures:**
 - Verify GitHub OAuth credentials are correct
 - Check that callback URL matches exactly
@@ -209,6 +291,4 @@ For deployment issues:
 ### Monitoring
 - Set up CloudWatch alarms for error rates
 - Monitor API usage and costs
-
 - Review security scan results regularly
-
