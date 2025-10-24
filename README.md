@@ -1,7 +1,7 @@
 # SBOM Security Agent
 
 A comprehensive security analysis agent that generates Software Bill of Materials (SBOM) reports and performs vulnerability scanning for GitHub repositories.
-This OAuth workflow will work in local development, but changes to AgentCore Identity implementation are being enforced 11/14/2025, putting changes in a separate repo
+
 ## Features
 
 - **GitHub Integration**: Secure OAuth2 authentication to access public and private repositories
@@ -42,6 +42,34 @@ pip install -r requirements.txt
    export GITHUB_CLIENT_SECRET="your-client-secret"
    export NVD_API_KEY="your-nvd-api-key"  # Optional
    ```
+
+## Quick Start
+
+### 1. Deploy the Agent
+```bash
+python deployment_config.py
+```
+
+### 2. Find Your Agent Endpoint
+After deployment, use the endpoint discovery utilities:
+
+```bash
+# Interactive helper (recommended for first-time setup)
+python get_agent_info.py
+
+# Quick endpoint lookup
+python find_endpoint.py
+
+# Auto-save configuration to .env file
+python get_agent_info.py --save-env
+```
+
+### 3. Test Your Deployment
+```bash
+python test_deployment.py
+```
+
+For detailed endpoint discovery help, see [ENDPOINT_DISCOVERY.md](ENDPOINT_DISCOVERY.md).
 
 ## Usage
 
@@ -93,6 +121,5 @@ mypy src/
 ```
 
 ## License
-
 
 MIT License - see LICENSE file for details.

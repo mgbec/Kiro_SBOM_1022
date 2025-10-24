@@ -214,6 +214,24 @@ def test_agent(endpoint_url, jwt_token, repository_url):
 def try_get_endpoint_from_deployment():
     """Try to get the endpoint URL from recent deployment output."""
     try:
+        # Try using the get_agent_info module for better detection
+        try:
+            from get_agent_info import find_agent_info, try_get_endpoint_from_deployment as get_endpoint
+            
+            # First try the deployment files method
+            endpoint = get_endpoint()
+            if endpoint:
+                return endpoint
+            
+            # Then try AWS API detection
+            agent_info = find_agent_info("sbom-security-agent")
+            if agent_info and agent_info.get('endpoint_url'):
+                return agent_info['endpoint_url']
+                
+        except ImportError:
+            # Fallback to original method if get_agent_info is not available
+            pass
+        
         # Check if there's a .bedrock_agentcore.yaml file (created by starter toolkit)
         if os.path.exists('.bedrock_agentcore.yaml'):
             print("📄 Found .bedrock_agentcore.yaml file from deployment")
@@ -244,6 +262,10 @@ def main():
     """Main test function."""
     print("🚀 SBOM Security Agent Deployment Test")
     print("="*50)
+    print()
+    print("💡 Tip: If you need help finding your agent endpoint, run:")
+    print("   python get_agent_info.py")
+    print()
     
     # Get configuration from environment or user input
     endpoint_url = os.getenv("AGENT_ENDPOINT")
