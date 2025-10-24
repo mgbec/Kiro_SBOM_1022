@@ -168,78 +168,67 @@ def deploy_with_conflict_handling(agentcore_runtime, agent_name, auto_update=Fal
         
     except Exception as e:
         error_message = str(e)
+        print(f"🔍 Full error message: {error_message}")  # Debug: show full error
         
-        # Handle specific conflict errors
+        # Handle specific conflict errors - be more permissive with error detection
         if ("already exists" in error_message.lower() or 
             "conflict" in error_message.lower() or
             "duplicate" in error_message.lower() or
-            "resourceconflictexception" in error_message.lower()):
+            "resourceconflictexception" in error_message.lower() or
+            "alreadyexists" in error_message.lower() or
+            "exists" in error_message.lower()):
             
             print(f"⚠️  Deployment conflict detected: {error_message}")
             
-            if auto_update:
-                print("🔄 Auto-update mode: Trying deployment with timestamp suffix...")
-                return try_deployment_with_unique_name(agent_name, "update")
-            elif force_recreate:
-                print("🔄 Force recreate mode: Trying deployment with new unique name...")
-                return try_deployment_with_unique_name(agent_name, "recreate")
+            if auto_update or force_recreate:
+                mode = "update" if auto_update else "recreate"
+                print(f"🔄 {mode.title()} mode: Generating unique agent name...")
+                
+                # Generate unique name (using only valid characters)
+                import datetime
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                unique_agent_name = f"{agent_name}_{mode}_{timestamp}"
+                
+                print(f"🔄 Retrying deployment with unique name: {unique_agent_name}")
+                print("💡 You'll need to use this new name for future deployments")
+                
+                # Save the new name for reference
+                try:
+                    with open('.env', 'a') as f:
+                        f.write(f"\n# Auto-generated agent name from conflict resolution\n")
+                        f.write(f"AGENT_NAME={unique_agent_name}\n")
+                    print(f"💾 Saved new agent name to .env file")
+                except Exception as env_error:
+                    print(f"⚠️  Could not save to .env file: {str(env_error)}")
+                
+                # Return False to indicate the user needs to redeploy with the new name
+                print(f"\n🔄 Please redeploy using the new agent name:")
+                print(f"   python simple_enhanced_deployment.py --agent-name {unique_agent_name}")
+                return False
             else:
                 print("\n💡 Conflict Resolution Options:")
-                print("1. Run with --auto-update to deploy with a unique name")
-                print("2. Run with --force-recreate to deploy with a new unique name")
-                print("3. Use --agent-name to specify a different name")
+                print("1. Run with --auto-update to generate a unique name")
+                print("2. Run with --force-recreate to generate a new unique name")
+                print("3. Use --agent-name to specify a different name manually")
                 print("4. Clean up existing resources: python cleanup_deployment.py --execute")
                 print("5. List existing resources: python cleanup_deployment.py")
-                print("\n🔄 Attempting automatic resolution with unique name...")
-                return try_deployment_with_unique_name(agent_name, "auto")
+                
+                # Generate a suggested unique name (using only valid characters)
+                import datetime
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                suggested_name = f"{agent_name}_{timestamp}"
+                print(f"\n💡 Suggested unique name: {suggested_name}")
+                print(f"   python simple_enhanced_deployment.py --agent-name {suggested_name}")
+                
+                return False
             
         else:
             print(f"❌ Failed to deploy agent: {error_message}")
+            print("💡 This doesn't appear to be a conflict error. Check your AWS credentials and permissions.")
             return False
 
 
-def try_deployment_with_unique_name(base_agent_name, mode):
-    """Try deployment with a unique agent name to avoid conflicts."""
-    import datetime
-    
-    # Generate unique suffix
-    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    unique_agent_name = f"{base_agent_name}-{mode}-{timestamp}"
-    
-    print(f"🔄 Attempting deployment with unique name: {unique_agent_name}")
-    
-    try:
-        # Set up Cognito auth again
-        cognito_config = setup_cognito_auth()
-        
-        # Configure runtime with unique name
-        agentcore_runtime = configure_runtime(unique_agent_name, cognito_config)
-        if not agentcore_runtime:
-            print("❌ Failed to configure runtime with unique name")
-            return False
-        
-        # Launch with unique name
-        launch_result = agentcore_runtime.launch()
-        
-        print("✅ SBOM Security Agent deployed successfully with unique name!")
-        print(f"🏷️  Agent Name: {unique_agent_name}")
-        print(f"Deployment result: {launch_result}")
-        
-        # Save the new agent name to environment for future use
-        try:
-            with open('.env', 'a') as f:
-                f.write(f"\n# Auto-generated agent name from conflict resolution\n")
-                f.write(f"AGENT_NAME={unique_agent_name}\n")
-            print(f"💾 Saved new agent name to .env file")
-        except Exception as env_error:
-            print(f"⚠️  Could not save to .env file: {str(env_error)}")
-        
-        return launch_result
-        
-    except Exception as e:
-        print(f"❌ Failed to deploy with unique name: {str(e)}")
-        print("💡 You may need to manually clean up AWS resources or use a different base name")
-        return False
+
 
 
 def main():
