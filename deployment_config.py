@@ -11,7 +11,7 @@ from bedrock_agentcore_starter_toolkit import Runtime
 from boto3.session import Session
 
 # Configuration
-AGENT_NAME = "sbom-security-agent"
+AGENT_NAME = "sbom_security_agent"
 ENTRYPOINT = "sbom_agent.py"
 REQUIREMENTS_FILE = "requirements.txt"
 
@@ -176,4 +176,5 @@ def main():
 
 if __name__ == "__main__":
     success = main()
+
     exit(0 if success else 1)
