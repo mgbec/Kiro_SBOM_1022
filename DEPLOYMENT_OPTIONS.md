@@ -18,28 +18,30 @@ python deployment_config.py --auto-update-on-conflict
 python deployment_config.py --help
 ```
 
-### 2. `enhanced_deployment.py` - Advanced Deployment
-Full-featured deployment with comprehensive conflict resolution.
+### 2. `simple_enhanced_deployment.py` - Enhanced Deployment
+Enhanced deployment with practical conflict resolution.
 
 ```bash
-# Interactive deployment (recommended)
-python enhanced_deployment.py
+# Standard deployment
+python simple_enhanced_deployment.py
 
-# Auto-update existing agents
-python enhanced_deployment.py --auto-update
+# Auto-update existing resources
+python simple_enhanced_deployment.py --auto-update
 
-# Delete and recreate agents
-python enhanced_deployment.py --force-recreate
+# Force recreate resources
+python simple_enhanced_deployment.py --force-recreate
 
 # Use different agent name
-python enhanced_deployment.py --agent-name my-custom-agent
+python simple_enhanced_deployment.py --agent-name my-custom-agent
 
 # Deploy to specific region
-python enhanced_deployment.py --region us-west-2
+python simple_enhanced_deployment.py --region us-west-2
 
 # Show help
-python enhanced_deployment.py --help
+python simple_enhanced_deployment.py --help
 ```
+
+**Note**: The original `enhanced_deployment.py` uses AgentCore APIs that are not available. Use `simple_enhanced_deployment.py` instead.
 
 ### 3. `production_deployment.py` - Production Deployment
 Production-specific deployment with OAuth callback handling.
@@ -67,8 +69,8 @@ Updates existing resources instead of creating new ones.
 # Simple auto-update
 python deployment_config.py --auto-update-on-conflict
 
-# Advanced auto-update
-python enhanced_deployment.py --auto-update
+# Enhanced auto-update
+python simple_enhanced_deployment.py --auto-update
 ```
 
 **Pros:**
@@ -84,7 +86,7 @@ python enhanced_deployment.py --auto-update
 Deletes existing resources and creates new ones.
 
 ```bash
-python enhanced_deployment.py --force-recreate
+python simple_enhanced_deployment.py --force-recreate
 ```
 
 **Pros:**

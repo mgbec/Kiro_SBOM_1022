@@ -39,42 +39,61 @@ def find_agent_info(agent_name="sbom-security-agent"):
         # Initialize AgentCore client
         agentcore_client = boto3.client('bedrock-agentcore-control', region_name=region)
         
-        # List all agents
-        print("📋 Listing all agents...")
-        response = agentcore_client.list_agents()
+        print("⚠️  Direct agent listing via AgentCore Control API is not available")
+        print("💡 AgentCore agents are managed through the Runtime toolkit")
+        print("💡 Trying alternative detection methods...")
         
-        agents = response.get('agents', [])
+        # Try to find agent info from deployment artifacts
+        agent_id = None
+        agent_info = {}
         
-        if not agents:
-            print("❌ No agents found in your account")
+        # Check for ECR repository (AgentCore Runtime creates these)
+        try:
+            ecr_client = boto3.client('ecr', region_name=region)
+            repo_name = f"agentcore-runtime-{agent_name.lower().replace('_', '-')}"
+            
+            try:
+                repo_info = ecr_client.describe_repositories(repositoryNames=[repo_name])
+                if repo_info.get('repositories'):
+                    print(f"✅ Found ECR repository: {repo_name}")
+                    # Extract potential agent ID from repository tags or metadata
+                    # This is a best-effort approach
+                    agent_id = repo_name.replace('agentcore-runtime-', '')
+                    agent_info = {
+                        'agentName': agent_name,
+                        'repository': repo_name
+                    }
+            except ecr_client.exceptions.RepositoryNotFoundException:
+                pass
+        except Exception as e:
+            print(f"⚠️  Could not check ECR repositories: {str(e)}")
+        
+        # Check for Lambda function (AgentCore Runtime creates these)
+        if not agent_id:
+            try:
+                lambda_client = boto3.client('lambda', region_name=region)
+                function_name = f"agentcore-runtime-{agent_name.lower().replace('_', '-')}"
+                
+                try:
+                    function_info = lambda_client.get_function(FunctionName=function_name)
+                    print(f"✅ Found Lambda function: {function_name}")
+                    # Extract agent ID from function metadata
+                    agent_id = function_name.replace('agentcore-runtime-', '')
+                    agent_info = {
+                        'agentName': agent_name,
+                        'functionName': function_name,
+                        'functionArn': function_info.get('Configuration', {}).get('FunctionArn')
+                    }
+                except lambda_client.exceptions.ResourceNotFoundException:
+                    pass
+            except Exception as e:
+                print(f"⚠️  Could not check Lambda functions: {str(e)}")
+        
+        if not agent_id:
+            print(f"❌ Could not find deployment artifacts for agent '{agent_name}'")
+            print("💡 Make sure the agent has been deployed successfully")
+            print("💡 Try running the deployment script first")
             return None
-        
-        print(f"📊 Found {len(agents)} agent(s)")
-        
-        # Look for our specific agent
-        target_agent = None
-        for agent in agents:
-            if agent_name in agent.get('agentName', '').lower():
-                target_agent = agent
-                break
-        
-        if not target_agent:
-            print(f"❌ Agent '{agent_name}' not found")
-            print("\n📋 Available agents:")
-            for agent in agents:
-                print(f"   • {agent.get('agentName', 'Unknown')} (ID: {agent.get('agentId', 'Unknown')})")
-            return None
-        
-        # Get detailed agent information
-        agent_id = target_agent.get('agentId')
-        print(f"✅ Found agent: {target_agent.get('agentName')}")
-        print(f"   Agent ID: {agent_id}")
-        
-        # Get agent details
-        agent_details = agentcore_client.get_agent(agentId=agent_id)
-        
-        # Extract endpoint information
-        agent_info = agent_details.get('agent', {})
         
         # Try to construct the endpoint URL
         endpoint_url = f"https://{agent_id}.bedrock-agentcore.{region}.amazonaws.com/invocations"

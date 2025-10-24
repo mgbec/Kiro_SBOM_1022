@@ -31,88 +31,77 @@ class DeploymentManager:
         self.region = self.boto_session.region_name
         self.agentcore_client = boto3.client('bedrock-agentcore-control', region_name=self.region)
     
-    def find_existing_agent(self):
-        """Find existing agent by name."""
-        try:
-            response = self.agentcore_client.list_agents()
-            agents = response.get('agents', [])
-            
-            for agent in agents:
-                if self.agent_name.lower() in agent.get('agentName', '').lower():
-                    return agent
-            
-            return None
-            
-        except Exception as e:
-            print(f"⚠️  Could not list existing agents: {str(e)}")
-            return None
-    
-    def delete_existing_agent(self, agent_id):
-        """Delete an existing agent."""
-        try:
-            print(f"🗑️  Deleting existing agent: {agent_id}")
-            self.agentcore_client.delete_agent(agentId=agent_id)
-            print("✅ Existing agent deleted successfully")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Failed to delete existing agent: {str(e)}")
-            return False
-    
-    def update_existing_agent(self, agent_id):
-        """Update an existing agent."""
-        try:
-            print(f"🔄 Updating existing agent: {agent_id}")
-            
-            # Get current agent configuration
-            agent_details = self.agentcore_client.get_agent(agentId=agent_id)
-            current_config = agent_details.get('agent', {})
-            
-            # Update agent with new configuration
-            update_params = {
-                'agentId': agent_id,
-                'agentName': self.agent_name,
-                'description': 'SBOM Security Agent - Updated deployment'
-            }
-            
-            # Add any additional update parameters here
-            response = self.agentcore_client.update_agent(**update_params)
-            
-            print("✅ Existing agent updated successfully")
-            return response
-            
-        except Exception as e:
-            print(f"❌ Failed to update existing agent: {str(e)}")
-            return None
-    
-    def handle_existing_agent(self, existing_agent):
-        """Handle existing agent based on deployment options."""
-        agent_id = existing_agent.get('agentId')
-        agent_name = existing_agent.get('agentName')
-        agent_status = existing_agent.get('agentStatus', 'Unknown')
+    def check_existing_deployment(self):
+        """Check if there are existing deployment artifacts."""
+        print("🔍 Checking for existing deployment artifacts...")
         
-        print(f"🔍 Found existing agent:")
-        print(f"   Name: {agent_name}")
-        print(f"   ID: {agent_id}")
-        print(f"   Status: {agent_status}")
+        existing_artifacts = []
+        
+        # Check for ECR repository
+        try:
+            ecr_client = boto3.client('ecr', region_name=self.region)
+            repo_name = f"agentcore-runtime-{self.agent_name.lower().replace('_', '-')}"
+            
+            try:
+                ecr_client.describe_repositories(repositoryNames=[repo_name])
+                existing_artifacts.append(f"ECR repository: {repo_name}")
+            except ecr_client.exceptions.RepositoryNotFoundException:
+                pass
+        except Exception as e:
+            print(f"⚠️  Could not check ECR repositories: {str(e)}")
+        
+        # Check for IAM role
+        try:
+            iam_client = boto3.client('iam', region_name=self.region)
+            role_name = f"AgentCoreRuntimeRole-{self.agent_name}"
+            
+            try:
+                iam_client.get_role(RoleName=role_name)
+                existing_artifacts.append(f"IAM role: {role_name}")
+            except iam_client.exceptions.NoSuchEntityException:
+                pass
+        except Exception as e:
+            print(f"⚠️  Could not check IAM roles: {str(e)}")
+        
+        # Check for Lambda function (AgentCore Runtime creates these)
+        try:
+            lambda_client = boto3.client('lambda', region_name=self.region)
+            function_name = f"agentcore-runtime-{self.agent_name.lower().replace('_', '-')}"
+            
+            try:
+                lambda_client.get_function(FunctionName=function_name)
+                existing_artifacts.append(f"Lambda function: {function_name}")
+            except lambda_client.exceptions.ResourceNotFoundException:
+                pass
+        except Exception as e:
+            print(f"⚠️  Could not check Lambda functions: {str(e)}")
+        
+        return existing_artifacts
+    
+    def handle_existing_artifacts(self, existing_artifacts):
+        """Handle existing deployment artifacts."""
+        if not existing_artifacts:
+            print("✅ No existing deployment artifacts found")
+            return True
+        
+        print(f"🔍 Found existing deployment artifacts:")
+        for artifact in existing_artifacts:
+            print(f"   • {artifact}")
         print()
         
         if self.force_recreate:
-            print("🔄 Force recreate mode: Deleting existing agent...")
-            if self.delete_existing_agent(agent_id):
-                return None  # Proceed with new deployment
-            else:
-                return False  # Failed to delete
+            print("🔄 Force recreate mode: AgentCore Runtime will handle cleanup...")
+            return True
         
         elif self.auto_update:
-            print("🔄 Auto-update mode: Updating existing agent...")
-            return self.update_existing_agent(agent_id)
+            print("🔄 Auto-update mode: AgentCore Runtime will update existing resources...")
+            return True
         
         else:
-            # Interactive mode - ask user what to do
-            print("❓ An agent with this name already exists. What would you like to do?")
-            print("1. Update the existing agent (recommended)")
-            print("2. Delete and recreate the agent")
+            # Interactive mode
+            print("❓ Existing deployment artifacts found. What would you like to do?")
+            print("1. Update existing deployment (recommended)")
+            print("2. Force recreate (AgentCore Runtime will handle cleanup)")
             print("3. Cancel deployment")
             print("4. Deploy with a different name")
             
@@ -120,12 +109,13 @@ class DeploymentManager:
                 choice = input("Enter your choice (1-4): ").strip()
                 
                 if choice == '1':
-                    return self.update_existing_agent(agent_id)
+                    print("🔄 Proceeding with update mode...")
+                    self.auto_update = True
+                    return True
                 elif choice == '2':
-                    if self.delete_existing_agent(agent_id):
-                        return None  # Proceed with new deployment
-                    else:
-                        return False
+                    print("🔄 Proceeding with force recreate mode...")
+                    self.force_recreate = True
+                    return True
                 elif choice == '3':
                     print("❌ Deployment cancelled by user")
                     return False
@@ -133,12 +123,15 @@ class DeploymentManager:
                     new_name = input("Enter new agent name: ").strip()
                     if new_name:
                         self.agent_name = new_name
-                        return None  # Proceed with new deployment
+                        print(f"🔄 Using new agent name: {new_name}")
+                        return True
                     else:
                         print("❌ Invalid agent name")
                         continue
                 else:
                     print("❌ Invalid choice. Please enter 1, 2, 3, or 4.")
+    
+
     
     def setup_github_oauth_provider(self):
         """Set up GitHub OAuth2 credential provider with conflict handling."""
@@ -281,22 +274,23 @@ class DeploymentManager:
         print("Deploying SBOM Security Agent to AgentCore Runtime...")
         
         try:
-            # Check for existing agent first
-            existing_agent = self.find_existing_agent()
+            # Check for existing deployment artifacts
+            existing_artifacts = self.check_existing_deployment()
             
-            if existing_agent:
-                result = self.handle_existing_agent(existing_agent)
-                
-                if result is False:
-                    # User cancelled or error occurred
+            if existing_artifacts:
+                if not self.handle_existing_artifacts(existing_artifacts):
                     return False
-                elif result is not None:
-                    # Agent was updated
-                    print("✅ SBOM Security Agent updated successfully!")
-                    return result
-                # If result is None, proceed with new deployment
             
-            # Launch new agent
+            # Configure deployment options based on conflict resolution mode
+            if self.force_recreate:
+                print("🔄 Force recreate mode: AgentCore Runtime will clean up existing resources")
+                # AgentCore Runtime handles cleanup automatically
+            elif self.auto_update:
+                print("🔄 Auto-update mode: AgentCore Runtime will update existing resources")
+                # AgentCore Runtime handles updates automatically
+            
+            # Launch the agent
+            print("🚀 Launching agent deployment...")
             launch_result = agentcore_runtime.launch()
             
             print("✅ SBOM Security Agent deployed successfully!")
@@ -308,17 +302,24 @@ class DeploymentManager:
             error_message = str(e)
             
             # Handle specific conflict errors
-            if "already exists" in error_message.lower() or "conflict" in error_message.lower():
+            if ("already exists" in error_message.lower() or 
+                "conflict" in error_message.lower() or
+                "duplicate" in error_message.lower() or
+                "resourceconflictexception" in error_message.lower()):
+                
                 print(f"⚠️  Deployment conflict detected: {error_message}")
                 
-                if self.auto_update:
-                    print("🔄 Auto-update mode: Attempting to resolve conflict...")
-                    # Try to find and update the existing agent
-                    existing_agent = self.find_existing_agent()
-                    if existing_agent:
-                        return self.handle_existing_agent(existing_agent)
+                if self.auto_update or self.force_recreate:
+                    print("🔄 Conflict resolution mode enabled, but AgentCore Runtime still failed")
+                    print("💡 This might be a resource that needs manual cleanup")
+                    print("💡 Try using a different agent name with --agent-name")
+                else:
+                    print("\n💡 Conflict Resolution Options:")
+                    print("1. Use --auto-update to update existing resources")
+                    print("2. Use --force-recreate to clean up and recreate")
+                    print("3. Use --agent-name to deploy with a different name")
+                    print("4. Manually clean up conflicting resources in AWS console")
                 
-                print("❌ Deployment failed due to conflict. Try using --auto-update or --force-recreate")
                 return False
             else:
                 print(f"❌ Failed to deploy agent: {error_message}")
