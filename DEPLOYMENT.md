@@ -44,7 +44,12 @@ Your AWS credentials need the following permissions:
    ```bash
    export $(cat .env | xargs)
    ```
-
+3. Create virtual environment according to your OS specifications, for me:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+   
 ## Step 3: Install Dependencies
 
 ```bash
@@ -206,3 +211,4 @@ For deployment issues:
 - Monitor API usage and costs
 
 - Review security scan results regularly
+
